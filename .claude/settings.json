@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh -i \"C:/Users/hubot/.ssh/hubmedia\" -o StrictHostKeyChecking=no hubmed01@cp03.ispweb.nl \"mysql -u hubmed01 -pA3RliMu3BeWVQspBNZDVvIWtF hubmed01_boekhouding -e 'SHOW TABLES;'\")"
+    ]
+  }
+}
