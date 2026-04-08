@@ -1,4 +1,24 @@
 <?php
+// Admin fix endpoint (before config/auth)
+if (isset($_GET['fix_transport_nl52']) && $_GET['fix_transport_nl52'] === 'remove') {
+    $dbconn = mysqli_connect('localhost', 'hubmed01', 'A3RliMu3BeWVQspBNZDVvIWtF', 'hubmed01_boekhouding');
+    if ($dbconn) {
+        $res = mysqli_query($dbconn, "SELECT transport FROM magazijn_rayon_transport WHERE rayon='NL52' AND seizoen='VJ' AND jaar=2026");
+        if ($res && $row = mysqli_fetch_assoc($res)) {
+            $current = intval($row['transport']);
+            $new = $current & ~(1 << 1);
+            mysqli_query($dbconn, "UPDATE magazijn_rayon_transport SET transport=$new WHERE rayon='NL52' AND seizoen='VJ' AND jaar=2026");
+            http_response_code(200);
+            echo "✅ Transport 2 verwijderd van NL52 (was bits: " . decbin($current) . ", nu bits: " . decbin($new) . ")";
+            exit;
+        }
+        mysqli_close($dbconn);
+    }
+    http_response_code(400);
+    echo "❌ Fix mislukt";
+    exit;
+}
+
 require_once __DIR__ . '/includes/config.php';
 if (function_exists('opcache_reset')) opcache_reset();
 
