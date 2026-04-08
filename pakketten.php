@@ -1,6 +1,19 @@
 <?php
 require_once __DIR__ . '/includes/config.php';
 if (function_exists('opcache_reset')) opcache_reset();
+
+// Admin fix: remove duplicate transport
+if (isset($_GET['fix_transport_nl52']) && $_GET['fix_transport_nl52'] === '1') {
+    $res = func_dbsi_qry("SELECT transport FROM magazijn_rayon_transport WHERE rayon='NL52' AND seizoen='VJ' AND jaar=2026");
+    if ($res && $row = $res->fetch_assoc()) {
+        $current = intval($row['transport']);
+        $new = $current & ~(1 << 1);
+        func_dbsi_qry("UPDATE magazijn_rayon_transport SET transport=$new WHERE rayon='NL52' AND seizoen='VJ' AND jaar=2026");
+        echo "Transport 2 verwijderd (was: $current, nu: $new)";
+        exit;
+    }
+}
+
 @func_dbsi_qry("CREATE TABLE IF NOT EXISTS magazijn_voorraad (id INT AUTO_INCREMENT PRIMARY KEY, klantnaam VARCHAR(255) NOT NULL, seizoen VARCHAR(10) NOT NULL, jaar INT NOT NULL, op_voorraad TINYINT(1) DEFAULT 0, bijgewerkt DATETIME DEFAULT NULL, UNIQUE KEY uk_kv (klantnaam,seizoen,jaar))");
 @func_dbsi_qry("ALTER TABLE magazijn_voorraad ADD COLUMN IF NOT EXISTS in_druk TINYINT(1) DEFAULT 0");
 @func_dbsi_qry("ALTER TABLE magazijn_voorraad ADD COLUMN IF NOT EXISTS wordt_gemaakt TINYINT(1) DEFAULT 0");
