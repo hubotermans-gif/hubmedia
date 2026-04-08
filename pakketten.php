@@ -865,17 +865,11 @@ if (isset($_GET['transport_scan'])) {
                         $absPath = __DIR__ . '/' . $relPath;
 
                         if (move_uploaded_file($f['tmp_name'], $absPath)) {
-                            try {
-                                $dbFoto = new PDO(
-                                    'mysql:host=localhost;dbname=hubmed01_boekhouding;charset=utf8mb4',
-                                    'hubmed01',
-                                    'A3RliMu3BeWVQspBNZDVvIWtF',
-                                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-                                );
-                                $stmtIns = $dbFoto->prepare("INSERT INTO magazijn_rayon_transport_fotos (rayon,seizoen,jaar,transport_nr,file_name,file_path) VALUES (?,?,?,?,?,?)");
-                                $stmtIns->execute([$ry, $sz, $jr, $nextBit, $f['name'], $relPath]);
+                            $sqlFoto = "INSERT INTO magazijn_rayon_transport_fotos (rayon,seizoen,jaar,transport_nr,file_name,file_path) VALUES ('".safe($ry)."','".safe($sz)."',$jr,$nextBit,'".safe($f['name'])."','".safe($relPath)."')";
+                            $resFotoIns = func_dbsi_qry($sqlFoto);
+                            if ($resFotoIns !== false) {
                                 $okFotos++;
-                            } catch (Exception $e) {
+                            } else {
                                 $badFotos++;
                                 @unlink($absPath);
                             }
