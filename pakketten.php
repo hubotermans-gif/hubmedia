@@ -750,6 +750,8 @@ if (isset($_GET['transport_scan'])) {
     $ry = trim($_GET['rayon'] ?? '');
     $sz = trim($_GET['seizoen'] ?? '');
     $jr = intval($_GET['jaar'] ?? date('Y'));
+    $requestedTransport = intval($_GET['transport_nr'] ?? 0);
+    if ($requestedTransport < 1 || $requestedTransport > 5) $requestedTransport = 0;
     $locs = 0;
     $nextBit = 0; $bits = 0; $msg = ''; $bevestigd = false;
 
@@ -758,7 +760,15 @@ if (isset($_GET['transport_scan'])) {
         if (isset($_POST['bevestig_transport']) && $_POST['bevestig_transport'] === '1') {
             $resT = func_dbsi_qry("SELECT transport FROM magazijn_rayon_transport WHERE rayon='".safe($ry)."' AND seizoen='".safe($sz)."' AND jaar=$jr");
             $bits = ($resT && $rT=$resT->fetch_assoc()) ? intval($rT['transport']) : 0;
-            for ($i=0;$i<5;$i++) { if (!($bits>>$i&1)) { $nextBit=$i+1; break; } }
+            if ($requestedTransport > 0) {
+                $nextBit = $requestedTransport;
+                if (($bits >> ($requestedTransport - 1)) & 1) {
+                    header('Location: pakketten.php?transport_scan=1&rayon='.urlencode($ry).'&seizoen='.urlencode($sz).'&jaar='.$jr.'&transport_nr='.$requestedTransport);
+                    exit;
+                }
+            } else {
+                for ($i=0;$i<5;$i++) { if (!($bits>>$i&1)) { $nextBit=$i+1; break; } }
+            }
             if ($nextBit > 0) {
                 $bit = 1 << ($nextBit-1);
                 func_dbsi_qry("INSERT INTO magazijn_rayon_transport (rayon,seizoen,jaar,transport) VALUES ('".safe($ry)."','".safe($sz)."',$jr,$bit) ON DUPLICATE KEY UPDATE transport=transport|$bit");
@@ -857,20 +867,24 @@ if (isset($_GET['transport_scan'])) {
                 $msg = "Transport $nextBit geregistreerd ✅" . $fotoStatus;
                 $bevestigd = true;
                 // Redirect to prevent double submission on page refresh
-                header('Location: pakketten.php?transport_scan=1&rayon='.urlencode($ry).'&seizoen='.urlencode($sz).'&jaar='.$jr);
+                header('Location: pakketten.php?transport_scan=1&rayon='.urlencode($ry).'&seizoen='.urlencode($sz).'&jaar='.$jr.($requestedTransport>0?'&transport_nr='.$requestedTransport:''));
                 exit;
             } else {
                 $msg = "Alle 5 transport-momenten al geregistreerd.";
                 $bevestigd = true;
                 // Redirect to prevent double submission on page refresh
-                header('Location: pakketten.php?transport_scan=1&rayon='.urlencode($ry).'&seizoen='.urlencode($sz).'&jaar='.$jr);
+                header('Location: pakketten.php?transport_scan=1&rayon='.urlencode($ry).'&seizoen='.urlencode($sz).'&jaar='.$jr.($requestedTransport>0?'&transport_nr='.$requestedTransport:''));
                 exit;
             }
         } else {
             // Alleen tonen, nog niet registreren
             $resT = func_dbsi_qry("SELECT transport FROM magazijn_rayon_transport WHERE rayon='".safe($ry)."' AND seizoen='".safe($sz)."' AND jaar=$jr");
             $bits = ($resT && $rT=$resT->fetch_assoc()) ? intval($rT['transport']) : 0;
-            for ($i=0;$i<5;$i++) { if (!($bits>>$i&1)) { $nextBit=$i+1; break; } }
+            if ($requestedTransport > 0) {
+                if (!(($bits >> ($requestedTransport - 1)) & 1)) $nextBit = $requestedTransport;
+            } else {
+                for ($i=0;$i<5;$i++) { if (!($bits>>$i&1)) { $nextBit=$i+1; break; } }
+            }
         }
         $resL = func_dbsi_qry("SELECT COUNT(*) as n FROM hubmedia_locaties WHERE Rayon='".safe($ry)."' AND (Status='0' OR Status='Actief' OR Status='$jr')");
         if ($resL && $rL=$resL->fetch_assoc()) $locs = intval($rL['n']);
@@ -945,8 +959,8 @@ body{font-family:Arial,sans-serif;background:#f0fdf4;display:flex;align-items:fl
     <?php else: ?>
     <!-- Vóór bevestiging: toon gewicht + bevestigknop samen -->
     <?php if($nextBit > 0): ?>
-    <div class="next-info" data-nl="Volgende: Transport <?=$nextBit?> registreren" data-ar="التالي: تسجيل النقل <?=$nextBit?>">Volgende: Transport <?=$nextBit?> registreren</div>
-    <form method="POST" enctype="multipart/form-data" action="pakketten.php?transport_scan=1&rayon=<?=urlencode($ry)?>&seizoen=<?=urlencode($sz)?>&jaar=<?=$jr?>">
+    <div class="next-info" data-nl="<?=($requestedTransport>0?'Deze QR-code is voor transport ':'Volgende: Transport ')?><?=$nextBit?> registreren" data-ar="التالي: تسجيل النقل <?=$nextBit?>"><?=($requestedTransport>0?'Deze QR-code is voor transport ':'Volgende: Transport ')?><?=$nextBit?> registreren</div>
+    <form method="POST" enctype="multipart/form-data" action="pakketten.php?transport_scan=1&rayon=<?=urlencode($ry)?>&seizoen=<?=urlencode($sz)?>&jaar=<?=$jr?><?=($requestedTransport>0?'&transport_nr='.$requestedTransport:'')?>">
         <input type="hidden" name="bevestig_transport" value="1">
         <!-- Gewicht invullen vóór bevestigen -->
         <div class="gw-wrap">
@@ -1002,8 +1016,8 @@ body{font-family:Arial,sans-serif;background:#f0fdf4;display:flex;align-items:fl
     <?php } ?>
     <?php else: ?>
     <div style="font-size:14px;color:#64748b;margin-bottom:16px;padding:10px;background:#f1f5f9;border-radius:8px"
-         data-nl="Alle transport-momenten al geregistreerd." data-ar="تم تسجيل جميع لحظات النقل.">
-        Alle transport-momenten al geregistreerd.
+         data-nl="<?=($requestedTransport>0?'Transport '.$requestedTransport.' is al geregistreerd.':'Alle transport-momenten al geregistreerd.')?>" data-ar="تم تسجيل جميع لحظات النقل.">
+        <?=($requestedTransport>0?'Transport '.$requestedTransport.' is al geregistreerd.':'Alle transport-momenten al geregistreerd.')?>
     </div>
     <?php endif; ?>
     <?php endif; ?>
@@ -1128,8 +1142,11 @@ if (isset($_GET['rayon_print'])) {
     $resL = func_dbsi_qry("SELECT COUNT(*) as n FROM hubmedia_locaties WHERE Rayon='".safe($ry)."' AND (Status='0' OR Status='Actief' OR Status='$jr')");
     if ($resL && $rL=$resL->fetch_assoc()) $locs = intval($rL['n']);
     $baseUrl = (isset($_SERVER['HTTPS'])&&$_SERVER['HTTPS']==='on'?'https':'http').'://'.$_SERVER['HTTP_HOST'];
-    $scanUrl = $baseUrl.'/pakketten.php?transport_scan=1&rayon='.urlencode($ry).'&seizoen='.urlencode($sz).'&jaar='.$jr;
-    $qrUrl   = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data='.urlencode($scanUrl);
+    $qrItems = [];
+    for ($tn=1;$tn<=5;$tn++) {
+        $scanUrl = $baseUrl.'/pakketten.php?transport_scan=1&rayon='.urlencode($ry).'&seizoen='.urlencode($sz).'&jaar='.$jr.'&transport_nr='.$tn;
+        $qrItems[] = ['nr'=>$tn, 'url'=>'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='.urlencode($scanUrl)];
+    }
 ?><!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8">
 <title>Rayon <?=htmlspecialchars($ry)?> &mdash; Transport</title>
 <style>
@@ -1143,8 +1160,9 @@ body{font-family:Arial,sans-serif;padding:30px;max-width:700px;margin:0 auto}
 .rayon-naam{font-size:64px;font-weight:900;color:#1e3a5f;line-height:1}
 .rayon-sub{font-size:18px;color:#64748b;margin-top:6px}
 .locaties{font-size:22px;font-weight:700;color:#1e3a5f;margin-top:4px}
-.qr-section{text-align:center;margin-top:40px;padding:30px;border:3px dashed #e2e8f0;border-radius:16px}
-.qr-section img{width:260px;height:260px;display:block;margin:0 auto 16px}
+.qr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:18px;margin-top:32px}
+.qr-item{text-align:center;padding:18px;border:2px dashed #e2e8f0;border-radius:16px}
+.qr-item img{width:160px;height:160px;display:block;margin:0 auto 12px}
 .qr-label{font-size:16px;font-weight:700;color:#1e3a5f;margin-bottom:6px}
 .qr-sub{font-size:12px;color:#94a3b8}
 .footer{margin-top:40px;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px}
@@ -1161,10 +1179,14 @@ body{font-family:Arial,sans-serif;padding:30px;max-width:700px;margin:0 auto}
         <div class="locaties">📦 <?=number_format($locs,0,',','.')?> locaties</div>
     </div>
 </div>
-<div class="qr-section">
-    <img src="<?=htmlspecialchars($qrUrl)?>" alt="QR code transport <?=htmlspecialchars($ry)?>">
-    <div class="qr-label">Scan bij transport</div>
-    <div class="qr-sub">Scan deze code als de dozen van rayon <?=htmlspecialchars($ry)?> op transport gaan.</div>
+<div class="qr-grid">
+    <?php foreach ($qrItems as $qrItem): ?>
+    <div class="qr-item">
+        <img src="<?=htmlspecialchars($qrItem['url'])?>" alt="QR code transport <?=htmlspecialchars($ry)?> #<?=$qrItem['nr']?>">
+        <div class="qr-label">Transport <?=$qrItem['nr']?></div>
+        <div class="qr-sub">Deze QR-code registreert alleen transport <?=$qrItem['nr']?>.</div>
+    </div>
+    <?php endforeach; ?>
 </div>
 <div class="transport-vinkjes">
 <?php for($i=1;$i<=5;$i++):?>
@@ -1296,7 +1318,7 @@ if (isset($_GET['batch_print'])) {
 <!-- Individuele rayon-pagina's: één per (rayon, run) -->
 <?php foreach ($batchItems as $bi):
     $bRy = $bi['rayon']; $bn = $bi['bn'];
-    $scanUrlR = $baseUrl.'/pakketten.php?transport_scan=1&rayon='.urlencode($bRy).'&seizoen='.urlencode($sz).'&jaar='.$jr;
+    $scanUrlR = $baseUrl.'/pakketten.php?transport_scan=1&rayon='.urlencode($bRy).'&seizoen='.urlencode($sz).'&jaar='.$jr.'&transport_nr='.$bn;
     $qrUrlR   = 'https://api.qrserver.com/v1/create-qr-code/?size=560x560&data='.urlencode($scanUrlR);
     $locsR    = $batchLocs[$bRy] ?? 0;
 ?>
