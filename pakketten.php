@@ -757,11 +757,19 @@ if (isset($_GET['transport_scan'])) {
     $requestedDone = false;
     $existingGewicht = '';
     $existingFolders = '';
+    $confirmedCount = 0;
+    $singleConfirmedTransport = 0;
 
     if ($ry && $sz) {
         $resT = func_dbsi_qry("SELECT * FROM magazijn_rayon_transport WHERE rayon='".safe($ry)."' AND seizoen='".safe($sz)."' AND jaar=$jr");
         $transportRow = ($resT && $rT=$resT->fetch_assoc()) ? $rT : null;
         $bits = $transportRow ? intval($transportRow['transport']) : 0;
+        for ($i=1;$i<=5;$i++) {
+            if (($bits >> ($i - 1)) & 1) {
+                $confirmedCount++;
+                $singleConfirmedTransport = $i;
+            }
+        }
 
         if ($requestedTransport > 0) {
             $requestedDone = ((($bits >> ($requestedTransport - 1)) & 1) === 1);
@@ -773,7 +781,18 @@ if (isset($_GET['transport_scan'])) {
                 $existingFolders = isset($transportRow[$foldersKey]) && $transportRow[$foldersKey] !== null ? (string)intval($transportRow[$foldersKey]) : '';
             }
         } else {
-            for ($i=0;$i<5;$i++) { if (!($bits>>$i&1)) { $nextBit=$i+1; break; } }
+            if ($confirmedCount === 1 && $singleConfirmedTransport > 0) {
+                $requestedDone = true;
+                $nextBit = $singleConfirmedTransport;
+                $gewichtKey = 'gewicht_'.$singleConfirmedTransport;
+                $foldersKey = 'folders_'.$singleConfirmedTransport;
+                if ($transportRow) {
+                    $existingGewicht = isset($transportRow[$gewichtKey]) && $transportRow[$gewichtKey] !== null ? (string)(0 + $transportRow[$gewichtKey]) : '';
+                    $existingFolders = isset($transportRow[$foldersKey]) && $transportRow[$foldersKey] !== null ? (string)intval($transportRow[$foldersKey]) : '';
+                }
+            } else {
+                for ($i=0;$i<5;$i++) { if (!($bits>>$i&1)) { $nextBit=$i+1; break; } }
+            }
         }
 
         // Bevestiging via POST? Dan pas registreren
