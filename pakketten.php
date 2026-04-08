@@ -2145,7 +2145,48 @@ function openModal(ry){
         bodyHtml+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;max-height:240px;overflow-y:auto;padding-right:4px">';
         d.fotos.forEach(function(f){
             var label='Transport #'+(f.transport_nr||'?');
-            bodyHtml+='<img src="'+f.path+'" style="width:100%;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid #e2e8f0;transition:.2s" onclick="openFotoPreview_Modal(\''+f.path.replace(/'/g,"\\'")+'\',' + (f.transport_nr ? 'Transport #' + f.transport_nr : 'Foto') + ')" title="'+label+'">';\n        });\n        bodyHtml+='</div></div>';\n    }\n    \n    var statusHtml={klaar:'<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">✅ Klaar</span>',bezig:'<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">🔧 Bezig</span>',nieuw:'<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">⏳ Te doen</span>'};\n    var rows='';\n    d.klanten.forEach(function(k){\n        var st=k.klaar?statusHtml.klaar:(statusHtml[k.status]||statusHtml.nieuw);\n        var vr=k.voorraad?'<span style="color:#059669;font-weight:600;font-size:11px">✅ Op voorraad</span>':'<span style="color:#94a3b8;font-size:11px">Niet op voorraad</span>';\n        var acties='<a href="pakketten.php?print='+encodeURIComponent(k.wb)+'&regio='+encodeURIComponent(k.regio)+'" target="_blank" style="background:#e0e7ff;color:#3730a3;padding:3px 8px;border-radius:5px;text-decoration:none;font-size:11px;font-weight:700;margin-right:4px">🖨️</a>'\n                  +'<a href="pakketten.php?wb='+encodeURIComponent(k.wb)+'&regio='+encodeURIComponent(k.regio)+'" target="_blank" style="background:#dbeafe;color:#1e40af;padding:3px 8px;border-radius:5px;text-decoration:none;font-size:11px;font-weight:700">📱</a>';\n        rows+='<tr style="border-bottom:1px solid #f1f5f9;'+(k.klaar?'background:#f0fdf4;':'')+'"><td style="padding:9px 14px;font-weight:600;font-size:13px">'+k.naam+(k.medewerker?'<br><small style="color:#94a3b8;font-weight:400">'+k.medewerker+'</small>':'')+'</td><td style="padding:9px 14px;text-align:center">'+st+'</td><td style="padding:9px 14px;text-align:center">'+vr+'</td><td style="padding:9px 14px;text-align:center;white-space:nowrap">'+acties+'</td></tr>';\n    });\n    if(!rows) rows='<tr><td colspan="4" style="padding:20px;text-align:center;color:#94a3b8">Geen klanten</td></tr>';\n    bodyHtml+='<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0"><th style="padding:8px 14px;text-align:left;font-size:11px;color:#64748b">Klant</th><th style="padding:8px 14px;font-size:11px;color:#64748b;text-align:center">Status</th><th style="padding:8px 14px;font-size:11px;color:#64748b;text-align:center">Voorraad</th><th style="padding:8px 14px;font-size:11px;color:#64748b;text-align:center">Acties</th></tr></thead><tbody>'+rows+'</tbody></table>';\n    document.getElementById('modalBody').innerHTML=bodyHtml;\n    var m=document.getElementById('rayonModal');\n    m.style.display='flex';\n    document.body.style.overflow='hidden';\n}\n\nfunction openFotoPreview_Modal(url, label){\n    var modal=document.createElement('div');\n    modal.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;z-index:9999;cursor:pointer;padding:20px';\n    var img=document.createElement('img');\n    img.src=url;\n    img.style.cssText='max-width:90%;max-height:90%;object-fit:contain;border-radius:12px';\n    var lbl=document.createElement('div');\n    lbl.style.cssText='position:absolute;bottom:20px;left:20px;right:20px;color:#fff;font-size:13px;font-weight:700;text-align:center;background:rgba(0,0,0,.6);padding:8px 12px;border-radius:8px;max-width:300px';\n    lbl.textContent=label||'Foto';\n    var closeBtn=document.createElement('button');\n    closeBtn.innerHTML='×';\n    closeBtn.style.cssText='position:absolute;top:20px;right:20px;background:rgba(255,255,255,.2);border:none;color:#fff;width:40px;height:40px;border-radius:8px;font-size:24px;cursor:pointer;line-height:1';\n    closeBtn.onclick=function(e){e.stopPropagation();document.body.removeChild(modal);};\n    modal.appendChild(img);\n    modal.appendChild(lbl);\n    modal.appendChild(closeBtn);\n    modal.onclick=function(){document.body.removeChild(modal);};\n    document.body.appendChild(modal);
+            var imgHtml='<img src="'+f.path+'" style="width:100%;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid #e2e8f0;transition:.2s" onclick="openFotoPreview_Modal(\''+f.path.replace(/'/g,"\\'")+'\',' + (f.transport_nr ? 'Transport #' + f.transport_nr : 'Foto') + ')" title="'+label+'">';
+            bodyHtml+=imgHtml;
+        });
+        bodyHtml+='</div></div>';
+    }
+    
+    var statusHtml={klaar:'<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">✅ Klaar</span>',bezig:'<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">🔧 Bezig</span>',nieuw:'<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">⏳ Te doen</span>'};
+    var rows='';
+    d.klanten.forEach(function(k){
+        var st=k.klaar?statusHtml.klaar:(statusHtml[k.status]||statusHtml.nieuw);
+        var vr=k.voorraad?'<span style="color:#059669;font-weight:600;font-size:11px">✅ Op voorraad</span>':'<span style="color:#94a3b8;font-size:11px">Niet op voorraad</span>';
+        var acties='<a href="pakketten.php?print='+encodeURIComponent(k.wb)+'&regio='+encodeURIComponent(k.regio)+'" target="_blank" style="background:#e0e7ff;color:#3730a3;padding:3px 8px;border-radius:5px;text-decoration:none;font-size:11px;font-weight:700;margin-right:4px">🖨️</a>'
+                  +'<a href="pakketten.php?wb='+encodeURIComponent(k.wb)+'&regio='+encodeURIComponent(k.regio)+'" target="_blank" style="background:#dbeafe;color:#1e40af;padding:3px 8px;border-radius:5px;text-decoration:none;font-size:11px;font-weight:700">📱</a>';
+        rows+='<tr style="border-bottom:1px solid #f1f5f9;'+(k.klaar?'background:#f0fdf4;':'')+'"><td style="padding:9px 14px;font-weight:600;font-size:13px">'+k.naam+(k.medewerker?'<br><small style="color:#94a3b8;font-weight:400">'+k.medewerker+'</small>':'')+'</td><td style="padding:9px 14px;text-align:center">'+st+'</td><td style="padding:9px 14px;text-align:center">'+vr+'</td><td style="padding:9px 14px;text-align:center;white-space:nowrap">'+acties+'</td></tr>';
+    });
+    if(!rows) rows='<tr><td colspan="4" style="padding:20px;text-align:center;color:#94a3b8">Geen klanten</td></tr>';
+    bodyHtml+='<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0"><th style="padding:8px 14px;text-align:left;font-size:11px;color:#64748b">Klant</th><th style="padding:8px 14px;font-size:11px;color:#64748b;text-align:center">Status</th><th style="padding:8px 14px;font-size:11px;color:#64748b;text-align:center">Voorraad</th><th style="padding:8px 14px;font-size:11px;color:#64748b;text-align:center">Acties</th></tr></thead><tbody>'+rows+'</tbody></table>';
+    document.getElementById('modalBody').innerHTML=bodyHtml;
+    var m=document.getElementById('rayonModal');
+    m.style.display='flex';
+    document.body.style.overflow='hidden';
+}
+
+function openFotoPreview_Modal(url, label){
+    var modal=document.createElement('div');
+    modal.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;z-index:9999;cursor:pointer;padding:20px';
+    var img=document.createElement('img');
+    img.src=url;
+    img.style.cssText='max-width:90%;max-height:90%;object-fit:contain;border-radius:12px';
+    var lbl=document.createElement('div');
+    lbl.style.cssText='position:absolute;bottom:20px;left:20px;right:20px;color:#fff;font-size:13px;font-weight:700;text-align:center;background:rgba(0,0,0,.6);padding:8px 12px;border-radius:8px;max-width:300px';
+    lbl.textContent=label||'Foto';
+    var closeBtn=document.createElement('button');
+    closeBtn.innerHTML='×';
+    closeBtn.style.cssText='position:absolute;top:20px;right:20px;background:rgba(255,255,255,.2);border:none;color:#fff;width:40px;height:40px;border-radius:8px;font-size:24px;cursor:pointer;line-height:1';
+    closeBtn.onclick=function(e){e.stopPropagation();document.body.removeChild(modal);};
+    modal.appendChild(img);
+    modal.appendChild(lbl);
+    modal.appendChild(closeBtn);
+    modal.onclick=function(){document.body.removeChild(modal);};
+    document.body.appendChild(modal);
+}
 function sluitModal(){
     document.getElementById('rayonModal').style.display='none';
     document.body.style.overflow='';
