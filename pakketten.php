@@ -986,8 +986,8 @@ body{font-family:Arial,sans-serif;background:#f0fdf4;display:flex;align-items:fl
     <?php else: ?>
     <!-- Vóór bevestiging: toon gewicht + bevestigknop samen -->
     <?php if($nextBit > 0): ?>
-    <div class="next-info" data-nl="<?=($requestedTransport>0?($requestedDone?'Deze QR-code opent transport ':'Deze QR-code is voor transport '):'Volgende: Transport ')?><?=$nextBit?> <?=($requestedTransport>0?'':'registreren')?>" data-ar="التالي: تسجيل النقل <?=$nextBit?>"><?=($requestedTransport>0?($requestedDone?'Deze QR-code opent transport ':'Deze QR-code is voor transport '):'Volgende: Transport ')?><?=$nextBit?> <?=($requestedTransport>0?'':'registreren')?></div>
-    <form method="POST" enctype="multipart/form-data" action="pakketten.php?transport_scan=1&rayon=<?=urlencode($ry)?>&seizoen=<?=urlencode($sz)?>&jaar=<?=$jr?><?=($requestedTransport>0?'&transport_nr='.$requestedTransport:'')?>">
+    <div class="next-info" data-nl="<?=($requestedDone?'Deze QR-code opent transport ':($requestedTransport>0?'Deze QR-code is voor transport ':'Volgende: Transport '))?><?=$nextBit?> <?=($requestedDone || $requestedTransport>0?'':'registreren')?>" data-ar="التالي: تسجيل النقل <?=$nextBit?>"><?=($requestedDone?'Deze QR-code opent transport ':($requestedTransport>0?'Deze QR-code is voor transport ':'Volgende: Transport '))?><?=$nextBit?> <?=($requestedDone || $requestedTransport>0?'':'registreren')?></div>
+    <form method="POST" enctype="multipart/form-data" action="pakketten.php?transport_scan=1&rayon=<?=urlencode($ry)?>&seizoen=<?=urlencode($sz)?>&jaar=<?=$jr?><?=((($requestedTransport>0)||$requestedDone)&&$nextBit>0?'&transport_nr='.$nextBit:'')?>">
         <input type="hidden" name="bevestig_transport" value="1">
         <!-- Gewicht invullen vóór bevestigen -->
         <div class="gw-wrap">
