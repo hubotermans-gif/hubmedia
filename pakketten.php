@@ -837,9 +837,15 @@ if (isset($_GET['transport_scan'])) {
                 }
                 $msg = "Transport $nextBit geregistreerd ✅" . $fotoStatus;
                 $bevestigd = true;
+                // Redirect to prevent double submission on page refresh
+                header('Location: pakketten.php?transport_scan=1&rayon='.urlencode($ry).'&seizoen='.urlencode($sz).'&jaar='.$jr);
+                exit;
             } else {
                 $msg = "Alle 5 transport-momenten al geregistreerd.";
                 $bevestigd = true;
+                // Redirect to prevent double submission on page refresh
+                header('Location: pakketten.php?transport_scan=1&rayon='.urlencode($ry).'&seizoen='.urlencode($sz).'&jaar='.$jr);
+                exit;
             }
         } else {
             // Alleen tonen, nog niet registreren
