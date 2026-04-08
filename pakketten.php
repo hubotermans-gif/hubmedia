@@ -758,7 +758,7 @@ if (isset($_GET['transport_scan'])) {
     $existingGewicht = '';
     $existingFolders = '';
     $confirmedCount = 0;
-    $singleConfirmedTransport = 0;
+    $latestConfirmedTransport = 0;
 
     if ($ry && $sz) {
         $resT = func_dbsi_qry("SELECT * FROM magazijn_rayon_transport WHERE rayon='".safe($ry)."' AND seizoen='".safe($sz)."' AND jaar=$jr");
@@ -767,7 +767,7 @@ if (isset($_GET['transport_scan'])) {
         for ($i=1;$i<=5;$i++) {
             if (($bits >> ($i - 1)) & 1) {
                 $confirmedCount++;
-                $singleConfirmedTransport = $i;
+                $latestConfirmedTransport = $i;
             }
         }
 
@@ -781,11 +781,11 @@ if (isset($_GET['transport_scan'])) {
                 $existingFolders = isset($transportRow[$foldersKey]) && $transportRow[$foldersKey] !== null ? (string)intval($transportRow[$foldersKey]) : '';
             }
         } else {
-            if ($confirmedCount === 1 && $singleConfirmedTransport > 0) {
+            if ($confirmedCount > 0 && $latestConfirmedTransport > 0) {
                 $requestedDone = true;
-                $nextBit = $singleConfirmedTransport;
-                $gewichtKey = 'gewicht_'.$singleConfirmedTransport;
-                $foldersKey = 'folders_'.$singleConfirmedTransport;
+                $nextBit = $latestConfirmedTransport;
+                $gewichtKey = 'gewicht_'.$latestConfirmedTransport;
+                $foldersKey = 'folders_'.$latestConfirmedTransport;
                 if ($transportRow) {
                     $existingGewicht = isset($transportRow[$gewichtKey]) && $transportRow[$gewichtKey] !== null ? (string)(0 + $transportRow[$gewichtKey]) : '';
                     $existingFolders = isset($transportRow[$foldersKey]) && $transportRow[$foldersKey] !== null ? (string)intval($transportRow[$foldersKey]) : '';
