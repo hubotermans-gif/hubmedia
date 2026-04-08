@@ -1,24 +1,4 @@
 <?php
-// Admin fix endpoint (before config/auth)
-if (isset($_GET['fix_transport_nl52']) && $_GET['fix_transport_nl52'] === 'remove') {
-    $dbconn = mysqli_connect('localhost', 'hubmed01', 'A3RliMu3BeWVQspBNZDVvIWtF', 'hubmed01_boekhouding');
-    if ($dbconn) {
-        $res = mysqli_query($dbconn, "SELECT transport FROM magazijn_rayon_transport WHERE rayon='NL52' AND seizoen='VJ' AND jaar=2026");
-        if ($res && $row = mysqli_fetch_assoc($res)) {
-            $current = intval($row['transport']);
-            $new = $current & ~(1 << 1);
-            mysqli_query($dbconn, "UPDATE magazijn_rayon_transport SET transport=$new WHERE rayon='NL52' AND seizoen='VJ' AND jaar=2026");
-            http_response_code(200);
-            echo "✅ Transport 2 verwijderd van NL52 (was bits: " . decbin($current) . ", nu bits: " . decbin($new) . ")";
-            exit;
-        }
-        mysqli_close($dbconn);
-    }
-    http_response_code(400);
-    echo "❌ Fix mislukt";
-    exit;
-}
-
 require_once __DIR__ . '/includes/config.php';
 if (function_exists('opcache_reset')) opcache_reset();
 
@@ -222,6 +202,24 @@ if (isset($_POST['action']) && $_POST['action'] === 'reset_rayon_transport') {
             VALUES ('".safe($ry)."','".safe($sz)."',$jr,0,NULL,NULL,NULL,NULL,NULL)
             ON DUPLICATE KEY UPDATE transport=0,gewicht_1=NULL,gewicht_2=NULL,gewicht_3=NULL,gewicht_4=NULL,gewicht_5=NULL");
         echo json_encode(['success'=>true]);
+    } else echo json_encode(['success'=>false]);
+    exit;
+}
+
+if (isset($_POST['action']) && $_POST['action'] === 'clear_single_transport') {
+    header('Content-Type: application/json');
+    $ry = trim($_POST['rayon'] ?? '');
+    $sz = trim($_POST['seizoen'] ?? '');
+    $jr = intval($_POST['jaar'] ?? date('Y'));
+    $tn = intval($_POST['transport_nr'] ?? 0);
+    if ($ry && $sz && $tn >= 1 && $tn <= 5) {
+        $bit = 1 << ($tn - 1);
+        $gewichtCol = 'gewicht_' . $tn;
+        $foldersCol = 'folders_' . $tn;
+        func_dbsi_qry("INSERT INTO magazijn_rayon_transport (rayon,seizoen,jaar,transport,$gewichtCol,$foldersCol)
+            VALUES ('".safe($ry)."','".safe($sz)."',$jr,0,NULL,NULL)
+            ON DUPLICATE KEY UPDATE transport=(transport & ~$bit), $gewichtCol=NULL, $foldersCol=NULL");
+        echo json_encode(['success'=>true, 'transport_nr'=>$tn]);
     } else echo json_encode(['success'=>false]);
     exit;
 }
@@ -2105,8 +2103,8 @@ var initTotaalBevestigd=<?=$totaalBevestigd?>;
             <?php for($tn=1;$tn<=5;$tn++):
                 $tC=($ryTBits>>($tn-1))&1;
             ?>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:1px" title="Transport <?=$tn?> <?=$tC?'✓':'(scan QR)'?>">
-                <div class="trans-box" style="width:15px;height:15px;border:2px solid <?=$tC?'#059669':'#cbd5e1'?>;border-radius:3px;background:<?=$tC?'#059669':'#f8fafc'?>;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff"><?=$tC?'✓':''?></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:1px" title="Transport <?=$tn?> <?=$tC?'✓ - klik om te verwijderen':'(scan QR)'?>">
+                <div class="trans-box" data-transport-nr="<?=$tn?>" style="width:15px;height:15px;border:2px solid <?=$tC?'#059669':'#cbd5e1'?>;border-radius:3px;background:<?=$tC?'#059669':'#f8fafc'?>;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;<?=$tC?'cursor:pointer':''?>" <?=$tC?"onclick=\"clearSingleTransport(this,'".htmlspecialchars($ry,ENT_QUOTES)."','".htmlspecialchars($seizoenFilter ?: $activeTab,ENT_QUOTES)."',".$tn.")\"":''?>><?=$tC?'✓':''?></div>
                 <span style="font-size:8px;color:#94a3b8"><?=$tn?></span>
             </div>
             <?php endfor;?>
@@ -2608,6 +2606,26 @@ function resetTransport(btn, ry, sz){
                     b.style.background='#f8fafc';b.style.borderColor='#cbd5e1';b.textContent='';
                 });
             }
+        }
+    });
+}
+
+function clearSingleTransport(box, ry, sz, transportNr){
+    if(!confirm('Transport '+transportNr+' verwijderen voor rayon '+ry+'?'))return;
+    var fd=new FormData();
+    fd.append('action','clear_single_transport');
+    fd.append('rayon',ry);
+    fd.append('seizoen',sz);
+    fd.append('jaar',<?=$filterJaar?>);
+    fd.append('transport_nr',transportNr);
+    fetch('pakketten.php',{method:'POST',body:fd}).then(r=>r.json()).then(function(d){
+        if(d.success){
+            box.style.background='#f8fafc';
+            box.style.borderColor='#cbd5e1';
+            box.style.cursor='default';
+            box.textContent='';
+            box.removeAttribute('onclick');
+            box.parentNode.title='Transport '+transportNr+' (scan QR)';
         }
     });
 }
