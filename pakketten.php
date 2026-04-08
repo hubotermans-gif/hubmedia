@@ -13,11 +13,13 @@ if (function_exists('opcache_reset')) opcache_reset();
     seizoen VARCHAR(10) NOT NULL,
     jaar INT NOT NULL,
     transport_nr TINYINT NOT NULL,
+    foto_type VARCHAR(20) NOT NULL DEFAULT 'transport',
     file_name VARCHAR(255) NOT NULL,
     file_path VARCHAR(255) NOT NULL,
     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_rayon_scan (rayon, seizoen, jaar, transport_nr)
 )");
+@func_dbsi_qry("ALTER TABLE magazijn_rayon_transport_fotos ADD COLUMN IF NOT EXISTS foto_type VARCHAR(20) NOT NULL DEFAULT 'transport' AFTER transport_nr");
 @func_dbsi_qry("ALTER TABLE magazijn_rayon_transport ADD COLUMN IF NOT EXISTS gewicht_1 DECIMAL(8,1) DEFAULT NULL");
 @func_dbsi_qry("ALTER TABLE magazijn_rayon_transport ADD COLUMN IF NOT EXISTS gewicht_2 DECIMAL(8,1) DEFAULT NULL");
 @func_dbsi_qry("ALTER TABLE magazijn_rayon_transport ADD COLUMN IF NOT EXISTS gewicht_3 DECIMAL(8,1) DEFAULT NULL");
@@ -865,7 +867,7 @@ if (isset($_GET['transport_scan'])) {
                         $absPath = __DIR__ . '/' . $relPath;
 
                         if (move_uploaded_file($f['tmp_name'], $absPath)) {
-                            $sqlFoto = "INSERT INTO magazijn_rayon_transport_fotos (rayon,seizoen,jaar,transport_nr,file_name,file_path) VALUES ('".safe($ry)."','".safe($sz)."',$jr,$nextBit,'".safe($f['name'])."','".safe($relPath)."')";
+                            $sqlFoto = "INSERT INTO magazijn_rayon_transport_fotos (rayon,seizoen,jaar,transport_nr,foto_type,file_name,file_path) VALUES ('".safe($ry)."','".safe($sz)."',$jr,$nextBit,'transport','".safe($f['name'])."','".safe($relPath)."')";
                             $resFotoIns = func_dbsi_qry($sqlFoto);
                             if ($resFotoIns !== false) {
                                 $okFotos++;
@@ -886,10 +888,48 @@ if (isset($_GET['transport_scan'])) {
                         $fotoStatus = ' (foto upload mislukt)';
                     }
                 }
+
+                $werkbonStatus = '';
+                if (isset($_FILES['werkbon_foto']) && intval($_FILES['werkbon_foto']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+                    $wf = [
+                        'name' => $_FILES['werkbon_foto']['name'] ?? '',
+                        'tmp_name' => $_FILES['werkbon_foto']['tmp_name'] ?? '',
+                        'size' => intval($_FILES['werkbon_foto']['size'] ?? 0),
+                        'error' => intval($_FILES['werkbon_foto']['error'] ?? UPLOAD_ERR_NO_FILE)
+                    ];
+                    $upDir = __DIR__.'/uploads/transport_scan/';
+                    if (!is_dir($upDir)) @mkdir($upDir, 0755, true);
+                    $ryTag = preg_replace('/[^A-Za-z0-9_-]/', '', $ry);
+                    $szTag = preg_replace('/[^A-Za-z0-9_-]/', '', $sz);
+                    if ($wf['error'] === UPLOAD_ERR_OK) {
+                        $ext = strtolower(pathinfo($wf['name'], PATHINFO_EXTENSION));
+                        if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'heic']) && intval($wf['size']) <= 20 * 1024 * 1024) {
+                            $newName = 'wb_' . $ryTag . '_' . $szTag . '_' . $jr . '_' . $nextBit . '_' . time() . '_' . mt_rand(1000,9999) . '.' . $ext;
+                            $relPath = 'uploads/transport_scan/' . $newName;
+                            $absPath = __DIR__ . '/' . $relPath;
+                            if (move_uploaded_file($wf['tmp_name'], $absPath)) {
+                                $sqlWerkbon = "INSERT INTO magazijn_rayon_transport_fotos (rayon,seizoen,jaar,transport_nr,foto_type,file_name,file_path) VALUES ('".safe($ry)."','".safe($sz)."',$jr,$nextBit,'werkbon','".safe($wf['name'])."','".safe($relPath)."')";
+                                $resWerkbon = func_dbsi_qry($sqlWerkbon);
+                                if ($resWerkbon !== false) {
+                                    $werkbonStatus = ' + werkbonfoto geupload';
+                                } else {
+                                    @unlink($absPath);
+                                    $werkbonStatus = ' (werkbonfoto upload mislukt)';
+                                }
+                            } else {
+                                $werkbonStatus = ' (werkbonfoto upload mislukt)';
+                            }
+                        } else {
+                            $werkbonStatus = ' (werkbonfoto ongeldig)';
+                        }
+                    } else {
+                        $werkbonStatus = ' (werkbonfoto upload mislukt)';
+                    }
+                }
                 if ($requestedTransport > 0 && $requestedDone) {
-                    $msg = "Transport $nextBit bijgewerkt ✅" . $fotoStatus;
+                    $msg = "Transport $nextBit bijgewerkt ✅" . $fotoStatus . $werkbonStatus;
                 } else {
-                    $msg = "Transport $nextBit geregistreerd ✅" . $fotoStatus;
+                    $msg = "Transport $nextBit geregistreerd ✅" . $fotoStatus . $werkbonStatus;
                 }
                 $bevestigd = true;
                 // Redirect to prevent double submission on page refresh
@@ -908,10 +948,12 @@ if (isset($_GET['transport_scan'])) {
         
         // Laad alle foto's voor deze rayon/seizoen
         $galleriFotos = [];
-        $resGal = func_dbsi_qry("SELECT id, file_path, transport_nr FROM magazijn_rayon_transport_fotos WHERE rayon='".safe($ry)."' AND seizoen='".safe($sz)."' AND jaar=$jr ORDER BY uploaded_at DESC LIMIT 50");
+        $werkbonFotos = [];
+        $resGal = func_dbsi_qry("SELECT id, file_path, transport_nr, foto_type FROM magazijn_rayon_transport_fotos WHERE rayon='".safe($ry)."' AND seizoen='".safe($sz)."' AND jaar=$jr ORDER BY uploaded_at DESC LIMIT 50");
         if ($resGal) {
             while ($gf = $resGal->fetch_assoc()) {
-                $galleriFotos[] = $gf;
+                if (($gf['foto_type'] ?? 'transport') === 'werkbon') $werkbonFotos[] = $gf;
+                else $galleriFotos[] = $gf;
             }
         }
         
@@ -1010,6 +1052,11 @@ body{font-family:Arial,sans-serif;background:#f0fdf4;display:flex;align-items:fl
                 <small class="foto-hint" data-nl="Na elke gekozen foto verschijnt automatisch een extra veld" data-ar="بعد اختيار كل صورة يظهر حقل إضافي تلقائيا">Na elke gekozen foto verschijnt automatisch een extra veld</small>
                 <small class="foto-count" id="fotoCount">0 foto's geselecteerd</small>
             </div>
+            <div style="margin-top:12px;border-top:1px solid #e2e8f0;padding-top:12px">
+                <div class="gw-lbl" data-nl="🧾 Werkbon foto (optioneel)" data-ar="🧾 صورة أمر العمل (اختياري)">🧾 Werkbon foto (optioneel)</div>
+                <input class="foto-inp" type="file" name="werkbon_foto" accept="image/*" capture="environment">
+                <small class="foto-hint" data-nl="Gebruik dit veld voor een aparte foto van de werkbon" data-ar="استخدم هذا الحقل لصورة منفصلة لأمر العمل">Gebruik dit veld voor een aparte foto van de werkbon</small>
+            </div>
         </div>
         <button type="submit" class="bevestig-btn" id="bevestigBtn"
             data-nl="<?=($requestedDone?'💾 Werk transport ':'✅ Bevestig transport ')?><?=$nextBit?>"
@@ -1030,6 +1077,23 @@ body{font-family:Arial,sans-serif;background:#f0fdf4;display:flex;align-items:fl
             <div style="position:relative;cursor:pointer" onclick="openFotoPreview('<?=htmlspecialchars($fpath)?>','Transport #<?=$trn?>')" title="Transport #<?=$trn?>">
                 <img src="<?=htmlspecialchars($fpath)?>" alt="Foto" class="foto-thumb" loading="lazy">
                 <span class="foto-badge">#<?=$trn?></span>
+            </div>
+            <?php } ?>
+        </div>
+    </div>
+    <?php } ?>
+    <?php if ($werkbonFotos && count($werkbonFotos) > 0) { ?>
+    <div style="margin-top:14px;padding:14px;background:#eff6ff;border-radius:10px;border:1px solid #bfdbfe">
+        <div class="gw-lbl" style="color:#1d4ed8">🧾 Werkbonfoto's (<?=count($werkbonFotos)?>)</div>
+        <div class="foto-gallery">
+            <?php foreach ($werkbonFotos as $f) {
+                $fpath = $f['file_path'] ?? '';
+                $trn = intval($f['transport_nr'] ?? 0);
+                if (!$fpath) continue;
+            ?>
+            <div style="position:relative;cursor:pointer" onclick="openFotoPreview('<?=htmlspecialchars($fpath)?>','Werkbon transport #<?=$trn?>')" title="Werkbon transport #<?=$trn?>">
+                <img src="<?=htmlspecialchars($fpath)?>" alt="Werkbonfoto" class="foto-thumb" loading="lazy">
+                <span class="foto-badge" style="background:#1d4ed8">WB #<?=$trn?></span>
             </div>
             <?php } ?>
         </div>
