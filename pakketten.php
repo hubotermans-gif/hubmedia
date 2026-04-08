@@ -754,21 +754,30 @@ if (isset($_GET['transport_scan'])) {
     if ($requestedTransport < 1 || $requestedTransport > 5) $requestedTransport = 0;
     $locs = 0;
     $nextBit = 0; $bits = 0; $msg = ''; $bevestigd = false;
+    $requestedDone = false;
+    $existingGewicht = '';
+    $existingFolders = '';
 
     if ($ry && $sz) {
+        $resT = func_dbsi_qry("SELECT * FROM magazijn_rayon_transport WHERE rayon='".safe($ry)."' AND seizoen='".safe($sz)."' AND jaar=$jr");
+        $transportRow = ($resT && $rT=$resT->fetch_assoc()) ? $rT : null;
+        $bits = $transportRow ? intval($transportRow['transport']) : 0;
+
+        if ($requestedTransport > 0) {
+            $requestedDone = ((($bits >> ($requestedTransport - 1)) & 1) === 1);
+            $nextBit = $requestedTransport;
+            $gewichtKey = 'gewicht_'.$requestedTransport;
+            $foldersKey = 'folders_'.$requestedTransport;
+            if ($transportRow) {
+                $existingGewicht = isset($transportRow[$gewichtKey]) && $transportRow[$gewichtKey] !== null ? (string)(0 + $transportRow[$gewichtKey]) : '';
+                $existingFolders = isset($transportRow[$foldersKey]) && $transportRow[$foldersKey] !== null ? (string)intval($transportRow[$foldersKey]) : '';
+            }
+        } else {
+            for ($i=0;$i<5;$i++) { if (!($bits>>$i&1)) { $nextBit=$i+1; break; } }
+        }
+
         // Bevestiging via POST? Dan pas registreren
         if (isset($_POST['bevestig_transport']) && $_POST['bevestig_transport'] === '1') {
-            $resT = func_dbsi_qry("SELECT transport FROM magazijn_rayon_transport WHERE rayon='".safe($ry)."' AND seizoen='".safe($sz)."' AND jaar=$jr");
-            $bits = ($resT && $rT=$resT->fetch_assoc()) ? intval($rT['transport']) : 0;
-            if ($requestedTransport > 0) {
-                $nextBit = $requestedTransport;
-                if (($bits >> ($requestedTransport - 1)) & 1) {
-                    header('Location: pakketten.php?transport_scan=1&rayon='.urlencode($ry).'&seizoen='.urlencode($sz).'&jaar='.$jr.'&transport_nr='.$requestedTransport);
-                    exit;
-                }
-            } else {
-                for ($i=0;$i<5;$i++) { if (!($bits>>$i&1)) { $nextBit=$i+1; break; } }
-            }
             if ($nextBit > 0) {
                 $bit = 1 << ($nextBit-1);
                 func_dbsi_qry("INSERT INTO magazijn_rayon_transport (rayon,seizoen,jaar,transport) VALUES ('".safe($ry)."','".safe($sz)."',$jr,$bit) ON DUPLICATE KEY UPDATE transport=transport|$bit");
@@ -864,7 +873,11 @@ if (isset($_GET['transport_scan'])) {
                         $fotoStatus = ' (foto upload mislukt)';
                     }
                 }
-                $msg = "Transport $nextBit geregistreerd ✅" . $fotoStatus;
+                if ($requestedTransport > 0 && $requestedDone) {
+                    $msg = "Transport $nextBit bijgewerkt ✅" . $fotoStatus;
+                } else {
+                    $msg = "Transport $nextBit geregistreerd ✅" . $fotoStatus;
+                }
                 $bevestigd = true;
                 // Redirect to prevent double submission on page refresh
                 header('Location: pakketten.php?transport_scan=1&rayon='.urlencode($ry).'&seizoen='.urlencode($sz).'&jaar='.$jr.($requestedTransport>0?'&transport_nr='.$requestedTransport:''));
@@ -875,15 +888,6 @@ if (isset($_GET['transport_scan'])) {
                 // Redirect to prevent double submission on page refresh
                 header('Location: pakketten.php?transport_scan=1&rayon='.urlencode($ry).'&seizoen='.urlencode($sz).'&jaar='.$jr.($requestedTransport>0?'&transport_nr='.$requestedTransport:''));
                 exit;
-            }
-        } else {
-            // Alleen tonen, nog niet registreren
-            $resT = func_dbsi_qry("SELECT transport FROM magazijn_rayon_transport WHERE rayon='".safe($ry)."' AND seizoen='".safe($sz)."' AND jaar=$jr");
-            $bits = ($resT && $rT=$resT->fetch_assoc()) ? intval($rT['transport']) : 0;
-            if ($requestedTransport > 0) {
-                if (!(($bits >> ($requestedTransport - 1)) & 1)) $nextBit = $requestedTransport;
-            } else {
-                for ($i=0;$i<5;$i++) { if (!($bits>>$i&1)) { $nextBit=$i+1; break; } }
             }
         }
         $resL = func_dbsi_qry("SELECT COUNT(*) as n FROM hubmedia_locaties WHERE Rayon='".safe($ry)."' AND (Status='0' OR Status='Actief' OR Status='$jr')");
@@ -951,22 +955,26 @@ body{font-family:Arial,sans-serif;background:#f0fdf4;display:flex;align-items:fl
     <?php if($bevestigd): ?>
     <!-- Na bevestiging: toon resultaat -->
     <?php if($nextBit > 0): ?>
-    <div class="msg" data-nl="Transport <?=$nextBit?> geregistreerd ✅" data-ar="تم تسجيل النقل <?=$nextBit?> ✅"><?=htmlspecialchars($msg)?></div>
+    <div class="msg" data-nl="<?=htmlspecialchars($msg, ENT_QUOTES)?>" data-ar="تم تسجيل النقل <?=$nextBit?> ✅"><?=htmlspecialchars($msg)?></div>
     <?php else: ?>
     <div style="font-size:14px;color:#64748b;margin-bottom:16px;padding:10px;background:#f1f5f9;border-radius:8px"><?=htmlspecialchars($msg)?></div>
+    <?php endif; ?>
+
+    <?php if($requestedTransport > 0): ?>
+    <div class="next-info" data-nl="<?=($requestedDone?'Deze QR-code opent transport ':'Deze QR-code is voor transport ')?><?=$nextBit?>" data-ar="التالي: تسجيل النقل <?=$nextBit?>"><?=($requestedDone?'Deze QR-code opent transport ':'Deze QR-code is voor transport ')?><?=$nextBit?></div>
     <?php endif; ?>
 
     <?php else: ?>
     <!-- Vóór bevestiging: toon gewicht + bevestigknop samen -->
     <?php if($nextBit > 0): ?>
-    <div class="next-info" data-nl="<?=($requestedTransport>0?'Deze QR-code is voor transport ':'Volgende: Transport ')?><?=$nextBit?> registreren" data-ar="التالي: تسجيل النقل <?=$nextBit?>"><?=($requestedTransport>0?'Deze QR-code is voor transport ':'Volgende: Transport ')?><?=$nextBit?> registreren</div>
+    <div class="next-info" data-nl="<?=($requestedTransport>0?($requestedDone?'Deze QR-code opent transport ':'Deze QR-code is voor transport '):'Volgende: Transport ')?><?=$nextBit?> <?=($requestedTransport>0?'':'registreren')?>" data-ar="التالي: تسجيل النقل <?=$nextBit?>"><?=($requestedTransport>0?($requestedDone?'Deze QR-code opent transport ':'Deze QR-code is voor transport '):'Volgende: Transport ')?><?=$nextBit?> <?=($requestedTransport>0?'':'registreren')?></div>
     <form method="POST" enctype="multipart/form-data" action="pakketten.php?transport_scan=1&rayon=<?=urlencode($ry)?>&seizoen=<?=urlencode($sz)?>&jaar=<?=$jr?><?=($requestedTransport>0?'&transport_nr='.$requestedTransport:'')?>">
         <input type="hidden" name="bevestig_transport" value="1">
         <!-- Gewicht invullen vóór bevestigen -->
         <div class="gw-wrap">
             <div class="gw-lbl" data-nl="⚖️ Gewicht transport <?=$nextBit?>" data-ar="⚖️ وزن النقل <?=$nextBit?>">⚖️ Gewicht transport <?=$nextBit?></div>
             <div class="gw-row">
-                <input class="gw-inp" type="number" name="gewicht" id="gwInp" step="1" min="0" placeholder="0" inputmode="numeric" oninput="checkGewicht(this.value)">
+                <input class="gw-inp" type="number" name="gewicht" id="gwInp" step="1" min="0" placeholder="0" inputmode="numeric" value="<?=htmlspecialchars($existingGewicht)?>" oninput="checkGewicht(this.value)">
                 <span class="gw-unit">gram</span>
             </div>
             <div class="gw-warn" id="gwWarn"
@@ -977,7 +985,7 @@ body{font-family:Arial,sans-serif;background:#f0fdf4;display:flex;align-items:fl
             <div style="margin-top:12px;border-top:1px solid #e2e8f0;padding-top:12px">
                 <div class="gw-lbl" data-nl="📂 Aantal folders" data-ar="📂 عدد المناشير">📂 Aantal folders</div>
                 <div class="gw-row">
-                    <input class="gw-inp" type="number" name="folders" id="flInp" step="1" min="0" placeholder="0" inputmode="numeric" style="font-size:22px">
+                    <input class="gw-inp" type="number" name="folders" id="flInp" step="1" min="0" placeholder="0" inputmode="numeric" value="<?=htmlspecialchars($existingFolders)?>" style="font-size:22px">
                     <span class="gw-unit">st.</span>
                 </div>
             </div>
@@ -991,8 +999,8 @@ body{font-family:Arial,sans-serif;background:#f0fdf4;display:flex;align-items:fl
             </div>
         </div>
         <button type="submit" class="bevestig-btn" id="bevestigBtn"
-                data-nl="✅ Bevestig transport <?=$nextBit?>"
-                data-ar="✅ تأكيد النقل <?=$nextBit?>">✅ Bevestig transport <?=$nextBit?></button>
+            data-nl="<?=($requestedDone?'💾 Werk transport ':'✅ Bevestig transport ')?><?=$nextBit?>"
+            data-ar="✅ تأكيد النقل <?=$nextBit?>"><?=($requestedDone?'💾 Werk transport ':'✅ Bevestig transport ')?><?=$nextBit?></button>
     </form>
     
     <!-- Foto gallerij van alle uploads voor deze rayon -->
